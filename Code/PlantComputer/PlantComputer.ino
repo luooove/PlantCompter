@@ -36,6 +36,16 @@ DallasTemperature sensors(&oneWire);
 BH1750 lightMeter;
 LiquidCrystal_I2C lcd(0x3F, 20, 4); // set the LCD address to 0x27 for a 16 chars and 2 line display
 
+/*
+   _______________threshold value_________________
+*/
+#define CO2_Threshold_LOW   1
+#define CO2_Threshold_HIGH   1
+#define Air_TEMP_Threshold_LOW    1
+#define Air_TEMP_Threshold_HIGH   1
+#define Light_Threshold_LOW    1
+#define Light_Threshold_HIGH   1
+
 
 /*
    ________________Conductivity_Init__________________
@@ -77,14 +87,20 @@ void setup() {
   lcd.backlight();
   lcd.setCursor(3, 0);
   lcd.print("PlantComputer");
-  pinMode(46, OUTPUT);
-  pinMode(48, OUTPUT);
-  pinMode(50, OUTPUT);
-  pinMode(52, OUTPUT);
+  pinMode(46, OUTPUT);//CO2
+  pinMode(48, OUTPUT);//生长灯
+  pinMode(50, OUTPUT);//冷却风扇
+  pinMode(52, OUTPUT);//加热
   digitalWrite(46, HIGH);
   digitalWrite(48, HIGH);
   digitalWrite(50, HIGH);
   digitalWrite(52, HIGH);
+  delay(2000);
+  digitalWrite(48, LOW);
+  delay(2000);
+  digitalWrite(48, HIGH);
+  delay(2000);
+  digitalWrite(48, LOW);
 }
 
 
@@ -120,13 +136,10 @@ void PH_detect()
   Serial.print("    pH:");
   Serial.print(phValue, 2);
   Serial.println(" ");
-  lcd.clear();//清屏
-  lcd.setCursor(3, 0);
-  lcd.print("PlantComputer");
+
   lcd.setCursor(0, 2);
   lcd.print("PH Value :");
   lcd.print(phValue);//水温
-  delay(1000);
   //  digitalWrite(13, HIGH);
   //  delay(800);
   //  digitalWrite(13, LOW);
@@ -208,8 +221,11 @@ void Conductivity()
       Serial.println("ms/cm");
     }
   }
-  lcd.setCursor(0, 3);
-  lcd.print("Conductivity:");
+  lcd.clear();//清屏
+  lcd.setCursor(3, 0);
+  lcd.print("PlantComputer");
+  lcd.setCursor(0, 1);
+  lcd.print("EC Value:");
   lcd.print(ECcurrent);//水温
   lcd.print("  ms/cm");
 
@@ -241,6 +257,9 @@ void get_water_Temp()
 /*
    ________________AirTemperatureHumidity__________________
 */
+
+float temperature_air = 0;
+float humidity_air = 0;
 void Temp_Hum()//温湿度
 {
   int chk = DHT11.read(DHT11PIN);
@@ -248,9 +267,11 @@ void Temp_Hum()//温湿度
   // lcd.print(" ·C");
   lcd.setCursor(0, 3);
   lcd.print("H:");
+  humidity_air = DHT11.humidity;
   lcd.print((float)DHT11.humidity, 2);//打印光照值
   lcd.setCursor(10, 3);
   lcd.print("T :");
+  temperature_air = DHT11.temperature;
   lcd.print((float)DHT11.temperature, 2);//打印光照值
 }
 /*
@@ -267,7 +288,35 @@ void light()
   lcd.print(lux);//打印光照值
   lcd.print(" lx");
 }
+#define         DC_GAIN                      (3)   //define the DC gain of amplifier
+#define         MG_PIN                       (A1)
+/*
+   ________________CO2__________________
+*/
 
+void CO2()
+{
+  float volts;
+  volts = (float)analogRead(MG_PIN) * 5 / 1024;
+
+  if (volts > 0.9)
+  {
+    Serial.print( "<400" );
+    lcd.setCursor(0, 3);
+    lcd.print("CO2:");
+    lcd.print("<400");
+    lcd.print(" PPM");
+  }
+  else
+  {
+    Serial.print(320 / volts);
+    lcd.setCursor(0, 3);
+    lcd.print("CO2:");
+    lcd.print(320 / volts);
+    lcd.print(" PPM");
+  }
+
+}
 /*
    ________________LCD4002__________________
 */
@@ -275,6 +324,53 @@ void LCD4002_Show()
 {
 
 }
+
+/*
+   ________________Adjustment通过打开各种执行器来调整参数__________________
+*/
+void Adjust()
+{
+  if (temperature_air < 20)
+  { //打开加热器
+    digitalWrite(52, LOW); //加热
+  }
+  if (temperature_air > 25)
+  { //打开加热器
+    digitalWrite(52, HIGH); //不加热
+  }
+  if (temperature_air > 30)//开风扇
+  { //打开风扇
+    digitalWrite(50, LOW);
+  }
+  if (temperature_air < 25)
+  { //打开加热器
+    digitalWrite(50, HIGH); //关风扇
+  }
+
+
+}
+//  if ()
+//  { // 如果光照小于光照阈值就打开生长灯
+//
+//  }
+//  else
+//  {
+
+
+//  if ()
+//  { // 如果温度低于   就打开加热器
+//
+//  }
+//  if ()
+//  { // 如果温度高于    就打开风扇散热
+//
+//  }
+//
+//  if ()
+//  { // 如果二氧化碳浓度高于    就打开风扇散热
+//
+//  }
+
 
 
 /*
@@ -289,11 +385,14 @@ void loop() {
   water_Temp();
   Temp_Hum();
   light();
-  delay(1000);
+  delay(3000);
   //_____page2_____
-  PH_detect();
   Conductivity();
-  delay(1000);
+  PH_detect();
+
+  CO2();
+  // Adjust();
+  delay(3000);
 }
 
 
